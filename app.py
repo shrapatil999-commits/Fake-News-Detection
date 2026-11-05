@@ -4,6 +4,7 @@ import pickle
 import re
 import pandas as pd
 from datetime import datetime
+import html
 
 # ---------------- PAGE SETTINGS ----------------
 
@@ -101,6 +102,107 @@ def clean_text(text):
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
+# ---------------- IMPORTANT WORD ANALYSIS ----------------
+
+def highlight_important_words(original_text):
+
+    if not hasattr(model, "coef_"):
+        return None
+
+    cleaned_text = clean_text(original_text)
+    vector = tfidf.transform([cleaned_text])
+
+    feature_names = tfidf.get_feature_names_out()
+    coefficients = model.coef_
+
+    predicted_label = model.predict(vector)[0]
+
+    classes = list(model.classes_)
+    predicted_index = classes.index(predicted_label)
+
+    # Find coefficient weights for predicted class
+    if coefficients.shape[0] == 1:
+        if predicted_index == 1:
+            weights = coefficients[0]
+        else:
+            weights = -coefficients[0]
+    else:
+        weights = coefficients[predicted_index]
+
+    # Calculate contribution of each word
+    indices = vector.nonzero()[1]
+    values = vector.data
+
+    contributions = []
+
+    for index, value in zip(indices, values):
+
+        word = feature_names[index]
+
+        # Highlight individual words only
+        if " " in word:
+            continue
+
+        contribution = value * weights[index]
+
+        contributions.append((word, contribution))
+
+    # Sort words by contribution
+    positive_words = sorted(
+        [x for x in contributions if x[1] > 0],
+        key=lambda x: x[1],
+        reverse=True
+    )[:8]
+
+    negative_words = sorted(
+        [x for x in contributions if x[1] < 0],
+        key=lambda x: x[1]
+    )[:8]
+
+    highlights = {}
+
+    for word, score in positive_words:
+        highlights[word] = "green"
+
+    for word, score in negative_words:
+        if word not in highlights:
+            highlights[word] = "red"
+
+    # Highlight words in original article
+    pattern = r"\b[A-Za-z]+\b"
+
+    def replace_word(match):
+
+        word = match.group()
+        color = highlights.get(word.lower())
+
+        safe_word = html.escape(word)
+
+        if color == "green":
+            return (
+                f'<span style="background-color:#c8f7c5;'
+                f'color:#14532d;padding:2px 4px;'
+                f'border-radius:4px;font-weight:bold;">'
+                f'{safe_word}</span>'
+            )
+
+        elif color == "red":
+            return (
+                f'<span style="background-color:#fecaca;'
+                f'color:#991b1b;padding:2px 4px;'
+                f'border-radius:4px;font-weight:bold;">'
+                f'{safe_word}</span>'
+            )
+
+        return safe_word
+
+    highlighted_text = re.sub(
+        pattern,
+        replace_word,
+        original_text
+    )
+
+    return highlighted_text, positive_words, negative_words
 
 # ---------------- LABEL CONVERSION ----------------
 
@@ -255,6 +357,68 @@ if result is not None:
 
     for label, probability in result["probabilities"].items():
         st.write(f"{label}: {probability:.2f}%")
+
+# ---------------- IMPORTANT WORD ANALYSIS ----------------
+
+st.divider()
+
+st.subheader("🔍 Important Word Analysis")
+
+analysis = highlight_important_words(result["news"])
+
+if analysis is not None:
+
+    highlighted_text, positive_words, negative_words = analysis
+
+    st.markdown("**News Article with Highlighted Words:**")
+
+    st.markdown(
+        f"""
+        <div style="
+            padding:15px;
+            border-radius:10px;
+            border:1px solid #888;
+            line-height:2;
+        ">
+        {highlighted_text}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.markdown("### 📌 Word Contributions")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("**🟢 Supports Predicted Class**")
+
+        if positive_words:
+            for word, score in positive_words:
+                st.write(f"• {word}")
+        else:
+            st.write("No strong supporting words found.")
+
+    with col2:
+        st.markdown("**🔴 Supports Other Class**")
+
+        if negative_words:
+            for word, score in negative_words:
+                st.write(f"• {word}")
+        else:
+            st.write("No strong opposing words found.")
+
+    st.caption(
+        "Word contributions are based on TF-IDF values "
+        "and Logistic Regression coefficients. "
+        "They indicate model associations, not factual evidence."
+    )
+
+else:
+    st.warning(
+        "Your model does not support coefficient-based "
+        "word analysis."
+    )
 
 
 # ---------------- PREDICTION HISTORY ----------------
