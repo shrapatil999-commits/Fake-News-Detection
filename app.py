@@ -31,9 +31,14 @@ if st.button("🔍 Detect News"):
         vector = tfidf.transform([cleaned])
         prediction = model.predict(vector)[0]
 
-        if prediction == 1:
-            st.success("REAL NEWS")
-        else:
-            st.error("FAKE NEWS")
-    else:
-        st.warning("Please enter some news text.")
+probabilities = model.predict_proba(vector)[0]
+confidence = max(probabilities) * 100
+
+st.subheader("Prediction Result")
+
+if prediction == 1:
+    st.success("REAL NEWS")
+else:
+    st.error("FAKE NEWS")
+
+st.metric("Prediction Confidence", f"{confidence:.2f}%")
