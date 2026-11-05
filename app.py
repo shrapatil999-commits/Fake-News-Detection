@@ -9,7 +9,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# Load model
+# Load trained model
 with open("fake_news_model.pkl", "rb") as f:
     model = pickle.load(f)
 
@@ -17,7 +17,7 @@ with open("tfidf_vectorizer.pkl", "rb") as f:
     tfidf = pickle.load(f)
 
 
-# Text cleaning
+# Text cleaning function
 def clean_text(text):
     text = text.lower()
     text = re.sub(r'http\S+|www\S+', '', text)
@@ -26,17 +26,15 @@ def clean_text(text):
     return text.strip()
 
 
-# Clear button callback
+# Clear input function
 def clear_news():
     st.session_state.news_input = ""
 
 
-# Heading
+# Main heading
 st.title("📰 Fake News Detection System")
 
-st.write(
-    "Machine Learning Based Fake News Classification"
-)
+st.write("Machine Learning Based Fake News Classification")
 
 st.info("Enter a news article to check its authenticity.")
 
@@ -62,7 +60,6 @@ with col2:
 
 # Prediction
 if predict:
-
     if news.strip():
 
         cleaned = clean_text(news)
@@ -88,35 +85,25 @@ if predict:
     else:
         st.warning("Please enter a news article.")
 
-
 # About Project
 with st.expander("📌 About Project"):
-
-    st.write("""
-    Fake News Detection is a Machine Learning project
-    that classifies news articles as REAL or FAKE.
-
-    It uses Natural Language Processing (NLP),
-    TF-IDF Vectorization and Logistic Regression.
-    """)
-
+    st.write(
+        "This project uses Machine Learning and "
+        "Natural Language Processing to classify "
+        "news articles as REAL or FAKE."
+    )
 
 # How it works
 with st.expander("⚙️ How It Works"):
-
     st.write("""
     1. User enters a news article.
     2. Text preprocessing cleans the article.
     3. TF-IDF converts text into numerical features.
-    4. Logistic Regression predicts the news category.
+    4. Logistic Regression predicts the category.
     5. The application displays the prediction
        and confidence score.
     """)
 
 st.caption("Developed using Python, NLP and Machine Learning.")
 
-        )
-
-    else:
-        st.warning("Please enter a news article.")
 
