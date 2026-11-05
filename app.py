@@ -5,6 +5,17 @@ import re
 import pandas as pd
 from datetime import datetime
 import html
+import io
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Table,
+    TableStyle
+)
 
 # ---------------- PAGE SETTINGS ----------------
 
@@ -358,68 +369,21 @@ if result is not None:
     for label, probability in result["probabilities"].items():
         st.write(f"{label}: {probability:.2f}%")
 
-# ---------------- IMPORTANT WORD ANALYSIS ----------------
+# ---------------- DOWNLOAD PDF REPORT ----------------
 
 st.divider()
 
-st.subheader("🔍 Important Word Analysis")
+st.subheader("📄 Download Prediction Report")
 
-analysis = highlight_important_words(result["news"])
+pdf_file = create_pdf_report(result)
 
-if analysis is not None:
-
-    highlighted_text, positive_words, negative_words = analysis
-
-    st.markdown("**News Article with Highlighted Words:**")
-
-    st.markdown(
-        f"""
-        <div style="
-            padding:15px;
-            border-radius:10px;
-            border:1px solid #888;
-            line-height:2;
-        ">
-        {highlighted_text}
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    st.markdown("### 📌 Word Contributions")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("**🟢 Supports Predicted Class**")
-
-        if positive_words:
-            for word, score in positive_words:
-                st.write(f"• {word}")
-        else:
-            st.write("No strong supporting words found.")
-
-    with col2:
-        st.markdown("**🔴 Supports Other Class**")
-
-        if negative_words:
-            for word, score in negative_words:
-                st.write(f"• {word}")
-        else:
-            st.write("No strong opposing words found.")
-
-    st.caption(
-        "Word contributions are based on TF-IDF values "
-        "and Logistic Regression coefficients. "
-        "They indicate model associations, not factual evidence."
-    )
-
-else:
-    st.warning(
-        "Your model does not support coefficient-based "
-        "word analysis."
-    )
-
+st.download_button(
+    label="📥 Download Report as PDF",
+    data=pdf_file,
+    file_name="Fake_News_Prediction_Report.pdf",
+    mime="application/pdf",
+    use_container_width=True
+)
 
 # ---------------- PREDICTION HISTORY ----------------
 
