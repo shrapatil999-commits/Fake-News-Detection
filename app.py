@@ -5,248 +5,210 @@ import re
 import pandas as pd
 from datetime import datetime
 
-# ---------------- PAGE CONFIG ----------------
+# ---------------- PAGE SETTINGS ----------------
 
 st.set_page_config(
     page_title="Fake News Detection",
     page_icon="📰",
-    layout="wide"
+    layout="centered"
 )
 
 # ---------------- LOAD MODEL ----------------
 
-with open("fake_news_model.pkl", "rb") as f:
-    model = pickle.load(f)
+@st.cache_resource
+def load_files():
+    with open("fake_news_model.pkl", "rb") as file:
+        model = pickle.load(file)
 
-with open("tfidf_vectorizer.pkl", "rb") as f:
-    tfidf = pickle.load(f)
+    with open("tfidf_vectorizer.pkl", "rb") as file:
+        tfidf = pickle.load(file)
+
+    return model, tfidf
 
 
-# ---------------- SESSION HISTORY ----------------
+model, tfidf = load_files()
+
+# ---------------- SESSION STATE ----------------
 
 if "history" not in st.session_state:
     st.session_state.history = []
 
+if "last_result" not in st.session_state:
+    st.session_state.last_result = None
 
-# ---------------- TEXT CLEANING ----------------
+if "news_input" not in st.session_state:
+    st.session_state.news_input = ""
+
+
+# ---------------- TEXT PREPROCESSING ----------------
 
 def clean_text(text):
     text = text.lower()
-    text = re.sub(r'http\S+|www\S+', '', text)
-    text = re.sub(r'[^a-zA-Z\s]', '', text)
-    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r"http\S+|www\S+", "", text)
+    text = re.sub(r"[^a-zA-Z\s]", "", text)
+    text = re.sub(r"\s+", " ", text)
     return text.strip()
 
 
-# ---------------- LABEL MAPPING ----------------
+# ---------------- LABEL CONVERSION ----------------
 
 def get_label_name(label):
-    if str(label).lower() in ["1", "real", "true"]:
-        return "REAL NEWS"
-    return "FAKE NEWS"
+    label_text = str(label).strip().lower()
+
+    if label_text in ["1", "real", "true"]:
+        return "REAL"
+
+    if label_text in ["0", "fake", "false"]:
+        return "FAKE"
+
+    return label_text.upper()
 
 
 # ---------------- CLEAR INPUT ----------------
 
-def clear_news():
+def clear_input():
     st.session_state.news_input = ""
+    st.session_state.last_result = None
 
 
-# ---------------- MAIN WEBSITE ----------------
+# ---------------- APP TITLE ----------------
 
 st.title("📰 Fake News Detection System")
 
 st.write(
-    "An AI-powered platform for analyzing "
-    "news articles using Machine Learning and NLP."
+    "Enter a news article or headline below to check "
+    "whether it is likely to be REAL or FAKE."
 )
 
 st.divider()
 
+# ---------------- NEWS INPUT ----------------
+
 news = st.text_area(
-    "Enter News Article",
-    height=200,
-    key="news_input",
-    placeholder="Paste your news article here..."
+    "Enter News Text:",
+    height=180,
+    placeholder="Paste your news article here...",
+    key="news_input"
 )
 
 col1, col2 = st.columns(2)
 
 with col1:
-    predict = st.button(
-        "🔍 Analyze News",
+    predict_button = st.button(
+        "🔍 Predict News",
         use_container_width=True
     )
 
 with col2:
     st.button(
-        "🗑️ Clear",
-        on_click=clear_news,
-        use_container_width=True
+        "🧹 Clear Input",
+        use_container_width=True,
+        on_click=clear_input
     )
 
 
 # ---------------- PREDICTION ----------------
 
-if predict:
+if predict_button:
 
-    if news.strip():
-
-        cleaned = clean_text(news)
-        vector = tfidf.transform([cleaned])
-
-        prediction = model.predict(vector)[0]
-        probabilities = model.predict_proba(vector)[0]
-
-        predicted_name = get_label_name(prediction)
-        confidence = max(probabilities) * 100
-
-        st.session_state.last_analysis = {
-            "news": news,
-            "prediction": predicted_name,
-            "confidence": confidence,
-            "probabilities": probabilities.tolist(),
-            "classes": model.classes_.tolist(),
-            "time": datetime.now().strftime(
-                "%d-%m-%Y %H:%M:%S"
-            )
-        }
-
-        # Save history
-        st.session_state.history.insert(0, {
-            "Date": datetime.now().strftime(
-                "%d-%m-%Y %H:%M:%S"
-            ),
-            "News": news[:100],
-            "Prediction": predicted_name,
-            "Confidence": round(confidence, 2)
-        })
+    if not news.strip():
+        st.warning("Please enter some news text first.")
 
     else:
-        st.warning("Please enter a news article.")
+        cleaned_news = clean_text(news)
+
+        if not cleaned_news:
+            st.warning("Please enter valid news text.")
+
+        else:
+            news_vector = tfidf.transform([cleaned_news])
+
+            prediction = model.predict(news_vector)[0]
+            probabilities = model.predict_proba(news_vector)[0]
+
+            prediction_name = get_label_name(prediction)
+
+            confidence = max(probabilities) * 100
+
+            probability_data = {}
+
+            for class_label, probability in zip(
+                model.classes_, probabilities
+            ):
+                display_label = get_label_name(class_label)
+                probability_data[display_label] = round(
+                    probability * 100, 2
+                )
+
+            # Save the latest result
+            st.session_state.last_result = {
+                "news": news,
+                "prediction": prediction_name,
+                "confidence": round(confidence, 2),
+                "probabilities": probability_data
+            }
+
+            # Add prediction to history
+            history_item = {
+                "Date & Time": datetime.now().strftime(
+                    "%d-%m-%Y %I:%M:%S %p"
+                ),
+                "News": news[:100] + ("..." if len(news) > 100 else ""),
+                "Prediction": prediction_name,
+                "Confidence": f"{confidence:.2f}%"
+            }
+
+            st.session_state.history.insert(0, history_item)
 
 
-# ---------------- DISPLAY ANALYSIS ----------------
+# ---------------- DISPLAY RESULT ----------------
 
-if "last_analysis" in st.session_state:
+result = st.session_state.last_result
 
-    result = st.session_state.last_analysis
+if result is not None:
 
     st.divider()
-    st.header("📊 Prediction Result")
+    st.subheader("📊 Prediction Result")
 
-    if result["prediction"] == "REAL NEWS":
-        st.success("✅ REAL NEWS")
+    if result["prediction"] == "REAL":
+        st.success("This news is predicted to be REAL.")
+
+    elif result["prediction"] == "FAKE":
+        st.error("This news is predicted to be FAKE.")
+
     else:
-        st.error("❌ FAKE NEWS")
+        st.info(f"Prediction: {result['prediction']}")
 
     st.metric(
-        "Prediction Confidence",
+        "Model Confidence",
         f"{result['confidence']:.2f}%"
     )
 
-    # -------- FEATURE 1: PROBABILITY CHART --------
+    st.caption(
+        "Confidence is the model's estimated probability, "
+        "not proof that the news is true or false."
+    )
+
+    # ---------------- PROBABILITY CHART ----------------
 
     st.subheader("📈 REAL vs FAKE Probability")
 
-    probability_data = {}
-
-    for label, probability in zip(
-        result["classes"],
-        result["probabilities"]
-    ):
-        probability_data[get_label_name(label)] = (
-            probability * 100
-        )
-
-    chart_df = pd.DataFrame(
-        {"Probability (%)": probability_data}
+    chart_data = pd.DataFrame(
+        {"Probability (%)": result["probabilities"]}
     )
 
-    st.bar_chart(chart_df)
+    st.bar_chart(chart_data)
 
-    st.caption(
-        "These probabilities represent the model's "
-        "estimated class probabilities, not verified truth."
-    )
+    st.write("**Probability Details:**")
 
-    # -------- FEATURE 2: IMPORTANT WORD ANALYSIS --------
-
-    st.subheader("🔎 Important Word Analysis")
-
-    if len(model.classes_) == 2 and hasattr(model, "coef_"):
-
-        feature_names = tfidf.get_feature_names_out()
-        text_values = vector.toarray()[0]
-
-        coefficients = model.coef_[0]
-
-        contributions = text_values * coefficients
-
-        positive_indices = contributions.argsort()[::-1]
-        negative_indices = contributions.argsort()
-
-        positive_words = []
-        negative_words = []
-
-        for index in positive_indices:
-            if contributions[index] > 0:
-                positive_words.append({
-                    "Word": feature_names[index],
-                    "Influence": round(
-                        float(contributions[index]), 4
-                    )
-                })
-
-        for index in negative_indices:
-            if contributions[index] < 0:
-                negative_words.append({
-                    "Word": feature_names[index],
-                    "Influence": round(
-                        float(abs(contributions[index])), 4
-                    )
-                })
-
-        positive_class = model.classes_[1]
-
-        if get_label_name(positive_class) == "REAL NEWS":
-            positive_title = "Words supporting REAL prediction"
-            negative_title = "Words supporting FAKE prediction"
-        else:
-            positive_title = "Words supporting FAKE prediction"
-            negative_title = "Words supporting REAL prediction"
-
-        with st.expander(positive_title):
-            if positive_words:
-                st.dataframe(
-                    pd.DataFrame(positive_words[:10]),
-                    use_container_width=True,
-                    hide_index=True
-                )
-            else:
-                st.write("No strong positive word contributions.")
-
-        with st.expander(negative_title):
-            if negative_words:
-                st.dataframe(
-                    pd.DataFrame(negative_words[:10]),
-                    use_container_width=True,
-                    hide_index=True
-                )
-            else:
-                st.write("No strong negative word contributions.")
-
-    else:
-        st.info(
-            "Word contribution analysis currently supports "
-            "binary Logistic Regression models."
-        )
+    for label, probability in result["probabilities"].items():
+        st.write(f"{label}: {probability:.2f}%")
 
 
-# ---------------- FEATURE 3: PREDICTION HISTORY ----------------
+# ---------------- PREDICTION HISTORY ----------------
 
 st.divider()
-st.header("📚 Prediction History")
+st.subheader("🕘 Prediction History")
 
 if st.session_state.history:
 
@@ -258,46 +220,39 @@ if st.session_state.history:
         hide_index=True
     )
 
-    if st.button("Clear Prediction History"):
+    if st.button("🗑️ Clear Prediction History"):
         st.session_state.history = []
         st.rerun()
 
 else:
-    st.info("Your analyzed news articles will appear here.")
+    st.info("Your prediction history will appear here.")
 
 
 # ---------------- ABOUT PROJECT ----------------
 
-with st.expander("📌 About Project"):
+st.divider()
 
-    st.write("""
-    Fake News Detection is a Machine Learning project
-    that classifies news articles as REAL or FAKE.
+with st.expander("ℹ️ About Project"):
+    st.write(
+        """
+        This Fake News Detection System uses Machine Learning
+        and Natural Language Processing (NLP).
 
-    Technologies:
-    - Python
-    - Natural Language Processing
-    - TF-IDF Vectorization
-    - Logistic Regression
-    - Streamlit
-    """)
-
-
-# ---------------- HOW IT WORKS ----------------
+        The model uses TF-IDF for text feature extraction
+        and Logistic Regression for classification.
+        """
+    )
 
 with st.expander("⚙️ How It Works"):
+    st.write(
+        """
+        1. Enter a news article.
+        2. The text is cleaned and preprocessed.
+        3. TF-IDF converts the text into numerical features.
+        4. Logistic Regression predicts the news category.
+        5. The result and probability chart are displayed.
+        """
+    )
 
-    st.write("""
-    1. Enter a news article.
-    2. Clean and preprocess the text.
-    3. Convert text into numerical features using TF-IDF.
-    4. Classify the article using Logistic Regression.
-    5. Display prediction and probability analysis.
-    6. Store the result in prediction history.
-    """)
-
-st.caption(
-    "Developed using Python, NLP and Machine Learning."
-)
 
 
