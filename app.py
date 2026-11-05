@@ -12,6 +12,58 @@ st.set_page_config(
     page_icon="📰",
     layout="centered"
 )
+# ---------------- THEME SETTINGS ----------------
+
+if "theme" not in st.session_state:
+    st.session_state.theme = "Light"
+
+st.sidebar.title("⚙️ Settings")
+
+theme = st.sidebar.radio(
+    "Choose Appearance",
+    ["Light", "Dark"],
+    index=["Light", "Dark"].index(st.session_state.theme)
+)
+
+st.session_state.theme = theme
+
+if theme == "Dark":
+    st.markdown("""
+        <style>
+        .stApp {
+            background-color: #121212;
+            color: white;
+        }
+
+        [data-testid="stSidebar"] {
+            background-color: #1e1e1e;
+        }
+
+        h1, h2, h3, p, label {
+            color: white !important;
+        }
+
+        .stTextArea textarea {
+            background-color: #292929;
+            color: white;
+        }
+
+        </style>
+    """, unsafe_allow_html=True)
+
+else:
+    st.markdown("""
+        <style>
+        .stApp {
+            background-color: #ffffff;
+            color: black;
+        }
+
+        [data-testid="stSidebar"] {
+            background-color: #f0f2f6;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
 # ---------------- LOAD MODEL ----------------
 
