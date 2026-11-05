@@ -9,7 +9,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# Load trained model and vectorizer
+# Load model
 with open("fake_news_model.pkl", "rb") as f:
     model = pickle.load(f)
 
@@ -26,23 +26,42 @@ def clean_text(text):
     return text.strip()
 
 
-# Application interface
+# Clear button callback
+def clear_news():
+    st.session_state.news_input = ""
+
+
+# Heading
 st.title("📰 Fake News Detection System")
 
 st.write(
-    "Machine Learning based Fake News Classification"
+    "Machine Learning Based Fake News Classification"
 )
 
-st.info(
-    "Enter a news article below to check its authenticity."
-)
+st.info("Enter a news article to check its authenticity.")
 
+# News input
 news = st.text_area(
     "Enter News Article",
-    height=200
+    height=200,
+    key="news_input"
 )
 
-if st.button("🔍 Detect News"):
+# Buttons
+col1, col2 = st.columns(2)
+
+with col1:
+    predict = st.button("🔍 Detect News", use_container_width=True)
+
+with col2:
+    st.button(
+        "🗑️ Clear",
+        on_click=clear_news,
+        use_container_width=True
+    )
+
+# Prediction
+if predict:
 
     if news.strip():
 
@@ -56,7 +75,6 @@ if st.button("🔍 Detect News"):
 
         st.subheader("Prediction Result")
 
-        # Adjust according to your dataset labels
         if prediction == 1:
             st.success("✅ REAL NEWS")
         else:
@@ -65,6 +83,38 @@ if st.button("🔍 Detect News"):
         st.metric(
             "Prediction Confidence",
             f"{confidence:.2f}%"
+        )
+
+    else:
+        st.warning("Please enter a news article.")
+
+
+# About Project
+with st.expander("📌 About Project"):
+
+    st.write("""
+    Fake News Detection is a Machine Learning project
+    that classifies news articles as REAL or FAKE.
+
+    It uses Natural Language Processing (NLP),
+    TF-IDF Vectorization and Logistic Regression.
+    """)
+
+
+# How it works
+with st.expander("⚙️ How It Works"):
+
+    st.write("""
+    1. User enters a news article.
+    2. Text preprocessing cleans the article.
+    3. TF-IDF converts text into numerical features.
+    4. Logistic Regression predicts the news category.
+    5. The application displays the prediction
+       and confidence score.
+    """)
+
+st.caption("Developed using Python, NLP and Machine Learning.")
+
         )
 
     else:
